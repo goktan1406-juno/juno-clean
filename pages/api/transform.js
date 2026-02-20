@@ -47,6 +47,8 @@ export default async function handler(req, res) {
         .readFileSync(imageFile.filepath)
         .toString("base64");
 
+      const dataUrl = `data:image/png;base64,${base64Image}`;
+
       const response = await fetch(
         "https://api.openai.com/v1/responses",
         {
@@ -64,8 +66,8 @@ export default async function handler(req, res) {
                   { type: "input_text", text: getPrompt(effect) },
                   {
                     type: "input_image",
-                    image_base64: base64Image,
-                  },
+                    image_url: dataUrl
+                  }
                 ],
               },
             ],
@@ -73,16 +75,15 @@ export default async function handler(req, res) {
         }
       );
 
-      const data = await response.json();
+      const result = await response.json();
 
-      // 🔥 Daha güvenli extraction
       let image = null;
 
-      if (data.output && Array.isArray(data.output)) {
-        for (const item of data.output) {
-          if (item.content && Array.isArray(item.content)) {
+      if (result.output) {
+        for (const item of result.output) {
+          if (item.content) {
             for (const c of item.content) {
-              if (c.type === "output_image" && c.image_base64) {
+              if (c.type === "output_image") {
                 image = c.image_base64;
                 break;
               }
@@ -93,10 +94,10 @@ export default async function handler(req, res) {
       }
 
       if (!image) {
-        console.error("RAW RESPONSE:", JSON.stringify(data, null, 2));
+        console.error("RAW:", JSON.stringify(result, null, 2));
         return res.status(500).json({
           error: "No image returned",
-          raw: data,
+          raw: result,
         });
       }
 
