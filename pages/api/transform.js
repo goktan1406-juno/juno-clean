@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import formidable from "formidable";
 import fs from "fs";
+import { toFile } from "openai/uploads";
 
 export const config = {
   api: { bodyParser: false },
@@ -22,7 +23,7 @@ function getPrompt(effect) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Only POST allowed" });
 
-  const form = formidable({ multiples: false });
+  const form = formidable({ multiples: false, keepExtensions: true });
 
   form.parse(req, async (err, fields, files) => {
     if (err) return res.status(500).json({ error: "Upload error" });
@@ -33,9 +34,16 @@ export default async function handler(req, res) {
     if (!imageFile) return res.status(400).json({ error: "No image provided" });
 
     try {
+      // ✅ Dosyayı filename + mimetype ile “gerçek file” yap
+      const file = await toFile(
+        fs.createReadStream(imageFile.filepath),
+        "image.png",
+        { type: "image/png" }
+      );
+
       const response = await openai.images.edit({
         model: "dall-e-2",
-        image: fs.createReadStream(imageFile.filepath),
+        image: file,
         prompt: getPrompt(effect),
         size: "512x512",
         response_format: "b64_json",
