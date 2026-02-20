@@ -32,7 +32,12 @@ export default function Home() {
     ctx.drawImage(img, 0, 0, width, height);
 
     return new Promise((resolve) => {
-      canvas.toBlob(resolve, "image/png", 0.5);
+     canvas.toBlob((blob) => {
+         const file = new File([blob], "image.png", {
+            type: "image/png",
+  });
+  resolve(file);
+}, "image/png", 0.6);
     });
   }
 
