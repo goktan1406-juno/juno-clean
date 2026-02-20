@@ -1,5 +1,6 @@
 import formidable from "formidable";
 import fs from "fs";
+import FormData from "form-data";
 
 export const config = {
   api: { bodyParser: false },
@@ -34,7 +35,12 @@ export default async function handler(req, res) {
     }
 
     try {
-      const imageBuffer = fs.readFileSync(imageFile.filepath);
+      const formData = new FormData();
+
+      formData.append("model", "dall-e-2");
+      formData.append("prompt", getPrompt(effect));
+      formData.append("image", fs.createReadStream(imageFile.filepath));
+      formData.append("size", "512x512");
 
       const response = await fetch(
         "https://api.openai.com/v1/images/edits",
@@ -42,19 +48,9 @@ export default async function handler(req, res) {
           method: "POST",
           headers: {
             Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            ...formData.getHeaders(),
           },
-          body: (() => {
-            const formData = new FormData();
-            formData.append("model", "gpt-image-1");
-            formData.append("prompt", getPrompt(effect));
-            formData.append(
-              "image",
-              new Blob([imageBuffer]),
-              "image.png"
-            );
-            formData.append("size", "512x512");
-            return formData;
-          })(),
+          body: formData,
         }
       );
 
