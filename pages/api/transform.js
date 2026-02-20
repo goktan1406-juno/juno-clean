@@ -1,10 +1,14 @@
 import formidable from "formidable";
 import fs from "fs";
-import FormData from "form-data";
+import OpenAI from "openai";
 
 export const config = {
   api: { bodyParser: false },
 };
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 function getPrompt(effect) {
   switch (effect) {
@@ -22,7 +26,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Only POST allowed" });
   }
 
-  const form = formidable({ multiples: false, keepExtensions: true });
+  const form = formidable({ multiples: false });
 
   form.parse(req, async (err, fields, files) => {
     if (err) return res.status(500).json({ error: "Upload error" });
@@ -35,41 +39,22 @@ export default async function handler(req, res) {
     }
 
     try {
-      const formData = new FormData();
-      formData.append("model", "dall-e-2");
-      formData.append("prompt", getPrompt(effect));
-      formData.append("image", fs.createReadStream(imageFile.filepath));
-      formData.append("size", "512x512");
-
-      const response = await fetch(
-        "https://api.openai.com/v1/images/edits",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            ...formData.getHeaders(),
-          },
-          body: formData,
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error("OPENAI ERROR:", data);
-        return res.status(500).json({
-          error: data?.error?.message || "Image generation failed",
-        });
-      }
+      const response = await openai.images.edit({
+        model: "dall-e-2",
+        image: fs.createReadStream(imageFile.filepath),
+        prompt: getPrompt(effect),
+        size: "512x512",
+        response_format: "b64_json",
+      });
 
       return res.status(200).json({
-        image: data.data[0].b64_json,
+        image: response.data[0].b64_json,
       });
 
     } catch (e) {
-      console.error("SERVER ERROR:", e);
+      console.error("OPENAI ERROR:", e);
       return res.status(500).json({
-        error: e?.message || "Server error",
+        error: e.message,
       });
     }
   });
