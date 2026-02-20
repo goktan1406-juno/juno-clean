@@ -47,7 +47,7 @@ export default async function handler(req, res) {
       const response = await openai.images.generate({
         model: "gpt-image-1",
         prompt: getPrompt(effect),
-        image: base64Image,
+        input: base64Image,
         size: "1024x1024",
       });
 
@@ -56,7 +56,7 @@ export default async function handler(req, res) {
       });
 
     } catch (e) {
-      console.error("ERROR:", e);
+      console.error("IMAGE GENERATION ERROR:", e);
       return res.status(500).json({
         error: e.message || "Image generation failed",
       });
