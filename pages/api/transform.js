@@ -1,14 +1,9 @@
-import OpenAI from "openai";
 import formidable from "formidable";
 import fs from "fs";
 
 export const config = {
   api: { bodyParser: false },
 };
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 function getPrompt(effect) {
   switch (effect) {
@@ -44,24 +39,36 @@ export default async function handler(req, res) {
       const imageBuffer = fs.readFileSync(imageFile.filepath);
       const base64Image = imageBuffer.toString("base64");
 
-      const response = await openai.responses.create({
-        model: "gpt-4.1",
-        input: [
-          {
-            role: "user",
-            content: [
-              { type: "input_text", text: getPrompt(effect) },
-              {
-                type: "input_image",
-                image_base64: base64Image,
-              },
-            ],
-          },
-        ],
-        modalities: ["image"],
+      const response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4.1",
+          input: [
+            {
+              role: "user",
+              content: [
+                { type: "input_text", text: getPrompt(effect) },
+                {
+                  type: "input_image",
+                  image_base64: base64Image,
+                },
+              ],
+            },
+          ],
+        }),
       });
 
-      const imageBase64 = response.output[0].content[0].image_base64;
+      const data = await response.json();
+
+      if (!response.ok) {
+        return res.status(500).json({ error: data });
+      }
+
+      const imageBase64 = data.output[0].content[0].image_base64;
 
       return res.status(200).json({
         image: imageBase64,
@@ -69,9 +76,7 @@ export default async function handler(req, res) {
 
     } catch (e) {
       console.error("IMAGE ERROR:", e);
-      return res.status(500).json({
-        error: e.message,
-      });
+      return res.status(500).json({ error: e.message });
     }
   });
 }
