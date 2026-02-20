@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import formidable from "formidable";
 import fs from "fs";
+import sharp from "sharp";
 import OpenAI from "openai";
 
 export const config = {
@@ -46,17 +47,14 @@ export default async function handler(req, res) {
     }
 
     try {
-      const buffer = fs.readFileSync(imageFile.filepath);
+      // 🔥 GERÇEK PNG ENCODE (resize yok)
+      const pngBuffer = await sharp(imageFile.filepath)
+        .png({ compressionLevel: 9 })
+        .toBuffer();
 
       const response = await openai.images.edit({
         model: "dall-e-2",
-        image: {
-          value: buffer,
-          options: {
-            filename: "image.png",   // 🔥 MIME FIX BURADA
-            contentType: "image/png",
-          },
-        },
+        image: pngBuffer,
         prompt: getPrompt(effect),
         size: "512x512",
         response_format: "b64_json",
