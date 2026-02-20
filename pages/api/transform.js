@@ -1,10 +1,8 @@
 export const runtime = "nodejs";
 
-export const config = {
-  api: { bodyParser: false },
-};
 import formidable from "formidable";
 import fs from "fs";
+import sharp from "sharp";
 import OpenAI from "openai";
 
 export const config = {
@@ -44,9 +42,14 @@ export default async function handler(req, res) {
     }
 
     try {
+      // 🔥 PNG'ye zorla dönüştür
+      const pngBuffer = await sharp(imageFile.filepath)
+        .png()
+        .toBuffer();
+
       const response = await openai.images.edit({
         model: "dall-e-2",
-        image: fs.createReadStream(imageFile.filepath),
+        image: pngBuffer,
         prompt: getPrompt(effect),
         size: "512x512",
         response_format: "b64_json",
