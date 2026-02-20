@@ -25,6 +25,7 @@ export default async function handler(req, res) {
 
   form.parse(req, async (err, fields, files) => {
     if (err) {
+      console.error("FORM ERROR:", err);
       return res.status(500).json({ error: "Upload error" });
     }
 
@@ -64,19 +65,35 @@ export default async function handler(req, res) {
 
       const data = await response.json();
 
+      // 🔥 GERÇEK HATAYI GÖR
       if (!response.ok) {
-        return res.status(500).json({ error: data });
+        console.error("OPENAI FULL ERROR:", JSON.stringify(data, null, 2));
+        return res.status(500).json({
+          error: data?.error?.message || JSON.stringify(data),
+        });
       }
 
-      const imageBase64 = data.output[0].content[0].image_base64;
+      // 🔥 Güvenli image extraction
+      const imageBase64 =
+        data?.output?.[0]?.content?.find(c => c.type === "output_image")
+          ?.image_base64;
+
+      if (!imageBase64) {
+        console.error("NO IMAGE IN RESPONSE:", JSON.stringify(data, null, 2));
+        return res.status(500).json({
+          error: "No image returned from OpenAI",
+        });
+      }
 
       return res.status(200).json({
         image: imageBase64,
       });
 
     } catch (e) {
-      console.error("IMAGE ERROR:", e);
-      return res.status(500).json({ error: e.message });
+      console.error("SERVER ERROR:", e);
+      return res.status(500).json({
+        error: e?.message || JSON.stringify(e),
+      });
     }
   });
 }
