@@ -30,7 +30,7 @@ export default async function handler(req, res) {
 
   const form = formidable({
     multiples: false,
-    maxFileSize: 2 * 1024 * 1024, // 🔥 2MB limit
+    maxFileSize: 2 * 1024 * 1024,
   });
 
   form.parse(req, async (err, fields, files) => {
@@ -45,16 +45,18 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "No image provided" });
     }
 
-    if (imageFile.mimetype !== "image/png") {
-      return res.status(400).json({
-        error: "Only PNG images allowed.",
-      });
-    }
-
     try {
+      const buffer = fs.readFileSync(imageFile.filepath);
+
       const response = await openai.images.edit({
         model: "dall-e-2",
-        image: fs.createReadStream(imageFile.filepath),
+        image: {
+          value: buffer,
+          options: {
+            filename: "image.png",   // 🔥 MIME FIX BURADA
+            contentType: "image/png",
+          },
+        },
         prompt: getPrompt(effect),
         size: "512x512",
         response_format: "b64_json",
