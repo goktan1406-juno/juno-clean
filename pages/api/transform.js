@@ -8,7 +8,7 @@ export const config = {
 function getPrompt(effect) {
   switch (effect) {
     case "vintage":
-      return "Recreate this photo in realistic 1990s Kodak film style. Warm tones, subtle grain.";
+      return "Transform this image into realistic 1990s Kodak film style. Warm tones, subtle grain, cinematic lighting.";
     case "balloon":
       return "Make the person's head look like a funny inflated balloon while keeping identity recognizable.";
     default:
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
           "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-4.1",
+          model: "gpt-image-1",
           input: [
             {
               role: "user",
@@ -55,29 +55,31 @@ export default async function handler(req, res) {
                 { type: "input_text", text: getPrompt(effect) },
                 {
                   type: "input_image",
-                  image_url: `data:image/png;base64,${base64Image}`
+                  image_url: `data:image/png;base64,${base64Image}`,
                 },
               ],
             },
           ],
+          size: "512x512", // 🔥 maliyet optimize
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        console.error("OPENAI FULL ERROR:", JSON.stringify(data, null, 2));
+        console.error("OPENAI ERROR:", JSON.stringify(data, null, 2));
         return res.status(500).json({
-          error: data?.error?.message || JSON.stringify(data),
+          error: data?.error?.message || "Image generation failed",
         });
       }
 
       const imageBase64 =
-        data?.output?.[0]?.content?.find(c => c.type === "output_image")
-          ?.image_base64;
+        data?.output?.[0]?.content?.find(
+          (c) => c.type === "output_image"
+        )?.image_base64;
 
       if (!imageBase64) {
-        console.error("NO IMAGE IN RESPONSE:", JSON.stringify(data, null, 2));
+        console.error("NO IMAGE RETURNED:", JSON.stringify(data, null, 2));
         return res.status(500).json({
           error: "No image returned from OpenAI",
         });
@@ -90,7 +92,7 @@ export default async function handler(req, res) {
     } catch (e) {
       console.error("SERVER ERROR:", e);
       return res.status(500).json({
-        error: e?.message || JSON.stringify(e),
+        error: e?.message || "Server error",
       });
     }
   });
