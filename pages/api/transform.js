@@ -44,15 +44,27 @@ export default async function handler(req, res) {
       const imageBuffer = fs.readFileSync(imageFile.filepath);
       const base64Image = imageBuffer.toString("base64");
 
-      const response = await openai.images.generate({
-        model: "gpt-image-1",
-        prompt: getPrompt(effect),
-        images: [base64Image],   // ✅ DOĞRU PARAM
-        size: "1024x1024",
+      const response = await openai.responses.create({
+        model: "gpt-4.1",
+        input: [
+          {
+            role: "user",
+            content: [
+              { type: "input_text", text: getPrompt(effect) },
+              {
+                type: "input_image",
+                image_base64: base64Image,
+              },
+            ],
+          },
+        ],
+        modalities: ["image"],
       });
 
+      const imageBase64 = response.output[0].content[0].image_base64;
+
       return res.status(200).json({
-        image: response.data[0].b64_json,
+        image: imageBase64,
       });
 
     } catch (e) {
