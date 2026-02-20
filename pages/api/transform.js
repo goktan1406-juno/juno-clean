@@ -55,7 +55,7 @@ export default async function handler(req, res) {
                 { type: "input_text", text: getPrompt(effect) },
                 {
                   type: "input_image",
-                  image_base64: base64Image,
+                  image_url: `data:image/png;base64,${base64Image}`
                 },
               ],
             },
@@ -65,7 +65,6 @@ export default async function handler(req, res) {
 
       const data = await response.json();
 
-      // 🔥 GERÇEK HATAYI GÖR
       if (!response.ok) {
         console.error("OPENAI FULL ERROR:", JSON.stringify(data, null, 2));
         return res.status(500).json({
@@ -73,7 +72,6 @@ export default async function handler(req, res) {
         });
       }
 
-      // 🔥 Güvenli image extraction
       const imageBase64 =
         data?.output?.[0]?.content?.find(c => c.type === "output_image")
           ?.image_base64;
