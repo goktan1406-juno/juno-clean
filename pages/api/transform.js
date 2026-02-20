@@ -1,3 +1,8 @@
+export const runtime = "nodejs";
+
+export const config = {
+  api: { bodyParser: false },
+};
 import formidable from "formidable";
 import fs from "fs";
 import OpenAI from "openai";
