@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Only POST allowed" });
   }
 
-  const form = formidable({ multiples: false });
+  const form = formidable({ multiples: false, keepExtensions: true });
 
   form.parse(req, async (err, fields, files) => {
     if (err) return res.status(500).json({ error: "Upload error" });
@@ -36,7 +36,6 @@ export default async function handler(req, res) {
 
     try {
       const formData = new FormData();
-
       formData.append("model", "dall-e-2");
       formData.append("prompt", getPrompt(effect));
       formData.append("image", fs.createReadStream(imageFile.filepath));
