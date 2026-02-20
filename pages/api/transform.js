@@ -37,21 +37,34 @@ export default async function handler(req, res) {
       const imageBuffer = fs.readFileSync(imageFile.filepath);
       const base64Image = imageBuffer.toString("base64");
 
-      const response = await fetch("https://api.openai.com/v1/images", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-image-1",
-          prompt: getPrompt(effect),
-          image: base64Image,
-          image_size: "512x512"
-        }),
-      });
+      const response = await fetch(
+        "https://api.openai.com/v1/images/generations",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-image-1",
+            prompt: getPrompt(effect),
+            image: base64Image,
+            size: "512x512"
+          }),
+        }
+      );
 
-      const data = await response.json();
+      const text = await response.text();
+
+      // HTML gelirse debug için göster
+      if (!text.startsWith("{")) {
+        console.error("RAW RESPONSE:", text);
+        return res.status(500).json({
+          error: "Invalid response from OpenAI",
+        });
+      }
+
+      const data = JSON.parse(text);
 
       if (!response.ok) {
         console.error("OPENAI ERROR:", data);
