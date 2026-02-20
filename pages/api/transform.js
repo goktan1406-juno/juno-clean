@@ -2,7 +2,6 @@ export const runtime = "nodejs";
 
 import formidable from "formidable";
 import fs from "fs";
-import sharp from "sharp";
 import OpenAI from "openai";
 
 export const config = {
@@ -29,10 +28,15 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Only POST allowed" });
   }
 
-  const form = formidable({ multiples: false });
+  const form = formidable({
+    multiples: false,
+    maxFileSize: 2 * 1024 * 1024, // 🔥 2MB limit
+  });
 
   form.parse(req, async (err, fields, files) => {
-    if (err) return res.status(500).json({ error: "Upload error" });
+    if (err) {
+      return res.status(400).json({ error: "File too large (max 2MB)." });
+    }
 
     const imageFile = files.image?.[0];
     const effect = fields.effect?.[0] || "default";
@@ -41,15 +45,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "No image provided" });
     }
 
-    try {
-      // 🔥 PNG'ye zorla dönüştür
-      const pngBuffer = await sharp(imageFile.filepath)
-        .png()
-        .toBuffer();
+    if (imageFile.mimetype !== "image/png") {
+      return res.status(400).json({
+        error: "Only PNG images allowed.",
+      });
+    }
 
+    try {
       const response = await openai.images.edit({
         model: "dall-e-2",
-        image: pngBuffer,
+        image: fs.createReadStream(imageFile.filepath),
         prompt: getPrompt(effect),
         size: "512x512",
         response_format: "b64_json",

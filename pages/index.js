@@ -1,76 +1,101 @@
 import { useState } from "react";
 
 export default function Home() {
+  const [image, setImage] = useState(null);
+  const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [effect, setEffect] = useState("vintage");
 
-  async function upload() {
-    const fileInput = document.getElementById("imageInput");
-    const effectSelect = document.getElementById("effect");
+  async function resizeImage(file) {
+    const img = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
 
-    const file = fileInput.files[0];
-    const effect = effectSelect.value;
+    const maxSize = 512;
+    let width = img.width;
+    let height = img.height;
 
-    if (!file) {
-      alert("Please select an image.");
-      return;
+    if (width > height) {
+      if (width > maxSize) {
+        height *= maxSize / width;
+        width = maxSize;
+      }
+    } else {
+      if (height > maxSize) {
+        width *= maxSize / height;
+        height = maxSize;
+      }
     }
+
+    canvas.width = width;
+    canvas.height = height;
+    ctx.drawImage(img, 0, 0, width, height);
+
+    return new Promise((resolve) => {
+      canvas.toBlob(resolve, "image/png", 0.9);
+    });
+  }
+
+  async function handleUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const resized = await resizeImage(file);
+    setImage(resized);
+  }
+
+  async function handleSubmit() {
+    if (!image) return;
+
+    setLoading(true);
 
     const formData = new FormData();
-    formData.append("image", file);
+    formData.append("image", image);
     formData.append("effect", effect);
 
-    try {
-      setLoading(true);
+    const res = await fetch("/api/transform", {
+      method: "POST",
+      body: formData,
+    });
 
-      const response = await fetch("/api/transform", {
-        method: "POST",
-        body: formData,
-      });
+    const data = await res.json();
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        alert("Error: " + (data.error || "Unknown error"));
-        return;
-      }
-
-      document.getElementById("result").src =
-        "data:image/png;base64," + data.image;
-
-    } catch (err) {
-      alert("Upload failed.");
-      console.error(err);
-    } finally {
-      setLoading(false);
+    if (data.image) {
+      setResult(`data:image/png;base64,${data.image}`);
+    } else {
+      alert(data.error || "Error");
     }
+
+    setLoading(false);
   }
 
   return (
-    <div style={{ padding: 40, fontFamily: "Arial" }}>
-      <h1>Juno AI Effects</h1>
+    <div style={{ padding: 40 }}>
+      <h1>JUNO AI</h1>
 
-      <input type="file" id="imageInput" />
+      <input type="file" accept="image/*" onChange={handleUpload} />
 
       <br /><br />
 
-      <select id="effect">
+      <select value={effect} onChange={(e) => setEffect(e.target.value)}>
         <option value="vintage">Vintage</option>
-        <option value="balloon">Balloon Face</option>
+        <option value="balloon">Balloon Head</option>
       </select>
 
       <br /><br />
 
-      <button onClick={upload} disabled={loading}>
+      <button onClick={handleSubmit} disabled={loading}>
         {loading ? "Processing..." : "Transform"}
       </button>
 
       <br /><br />
 
-      <img
-        id="result"
-        alt="Result"
-        style={{ maxWidth: "400px", marginTop: 20 }}
-      />
+      {result && (
+        <div>
+          <h3>Result:</h3>
+          <img src={result} style={{ maxWidth: 400 }} />
+        </div>
+      )}
     </div>
   );
 }
