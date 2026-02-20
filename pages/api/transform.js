@@ -12,9 +12,9 @@ export const config = {
 function getPrompt(effect) {
   switch (effect) {
     case "vintage":
-      return "Recreate this image in realistic 1990s Kodak film style.";
+      return "Apply realistic 1990s Kodak film look, warm tones, soft grain, subtle vignette.";
     case "balloon":
-      return "Make the person's head look like a funny inflated balloon while keeping identity recognizable.";
+      return "Make the person's head look like an inflated balloon, funny but recognizable.";
     default:
       return "Enhance this image professionally.";
   }
@@ -27,15 +27,14 @@ export default async function handler(req, res) {
 
   const form = formidable({
     multiples: false,
-    maxFileSize: 2 * 1024 * 1024, // 2MB
+    maxFileSize: 2 * 1024 * 1024,
   });
 
   form.parse(req, async (err, fields, files) => {
     if (err) {
-      return res.status(400).json({ error: "File too large (max 2MB)." });
+      return res.status(400).json({ error: "Upload error or file too large." });
     }
 
-    // 🔥 formidable v2 / v3 uyumlu çözüm
     let imageFile = files.image;
     if (Array.isArray(imageFile)) {
       imageFile = imageFile[0];
@@ -57,7 +56,6 @@ export default async function handler(req, res) {
       formData.append("size", "512x512");
       formData.append("response_format", "b64_json");
 
-      // 🔥 BURASI KRİTİK
       formData.append(
         "image",
         fs.createReadStream(imageFile.filepath),
@@ -68,7 +66,7 @@ export default async function handler(req, res) {
       );
 
       const response = await fetch(
-        "https://api.openai.com/v1/images/edits",
+        "https://api.openai.com/v1/images/variations",
         {
           method: "POST",
           headers: {
@@ -82,9 +80,9 @@ export default async function handler(req, res) {
       const data = await response.json();
 
       if (!data.data || !data.data[0]) {
-        console.error("OPENAI RAW RESPONSE:", data);
+        console.error("OPENAI RAW:", data);
         return res.status(500).json({
-          error: "No image returned from OpenAI",
+          error: "No image returned",
           raw: data,
         });
       }
