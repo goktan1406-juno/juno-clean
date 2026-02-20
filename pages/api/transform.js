@@ -11,9 +11,9 @@ export const config = {
 function getPrompt(effect) {
   switch (effect) {
     case "vintage":
-      return "Transform this image into a realistic 1990s Kodak film photo. Warm tones, subtle grain, soft vignette. Keep identity exactly the same.";
+      return "Transform this photo into a realistic 1990s Kodak film style with warm tones, subtle grain, and soft vignette. Keep the same person and identity.";
     case "balloon":
-      return "Make the person's head look like an inflated balloon. Funny and exaggerated but clearly recognizable.";
+      return "Make the person's head look like a funny inflated balloon while keeping their identity recognizable.";
     default:
       return "Enhance this image professionally.";
   }
@@ -43,69 +43,29 @@ export default async function handler(req, res) {
     }
 
     try {
-      const base64Image = fs
-        .readFileSync(imageFile.filepath)
-        .toString("base64");
+      const base64 = fs.readFileSync(imageFile.filepath).toString("base64");
 
-      const dataUrl = `data:image/png;base64,${base64Image}`;
+      const dataUrl = `data:image/png;base64,${base64}`;
 
-      const response = await fetch(
-        "https://api.openai.com/v1/responses",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "gpt-image-1",
-            input: [
-              {
-                role: "user",
-                content: [
-                  { type: "input_text", text: getPrompt(effect) },
-                  {
-                    type: "input_image",
-                    image_url: dataUrl
-                  }
-                ],
-              },
-            ],
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      let image = null;
-
-      if (result.output) {
-        for (const item of result.output) {
-          if (item.content) {
-            for (const c of item.content) {
-              if (c.type === "output_image") {
-                image = c.image_base64;
-                break;
-              }
-            }
-          }
-          if (image) break;
-        }
-      }
-
-      if (!image) {
-        console.error("RAW:", JSON.stringify(result, null, 2));
-        return res.status(500).json({
-          error: "No image returned",
-          raw: result,
-        });
-      }
-
-      return res.status(200).json({ image });
-
-    } catch (e) {
-      console.error("ERROR:", e);
-      return res.status(500).json({ error: e.message });
-    }
-  });
-}
+      const response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-image-1",
+          input: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "input_text",
+                  text: getPrompt(effect),
+                },
+                {
+                  type: "input_image",
+                  image_url: dataUrl,
+                },
+              ],
+            },
