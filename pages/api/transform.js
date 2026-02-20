@@ -2,7 +2,6 @@ export const runtime = "nodejs";
 
 import formidable from "formidable";
 import fs from "fs";
-import FormData from "form-data";
 import fetch from "node-fetch";
 
 export const config = {
@@ -12,9 +11,9 @@ export const config = {
 function getPrompt(effect) {
   switch (effect) {
     case "vintage":
-      return "Apply realistic 1990s Kodak film look, warm tones, soft grain, subtle vignette.";
+      return "Transform this image into a realistic 1990s Kodak film photo. Warm tones, subtle grain, soft vignette. Keep identity exactly the same.";
     case "balloon":
-      return "Make the person's head look like an inflated balloon, funny but recognizable.";
+      return "Make the person's head look like an inflated balloon. Funny and exaggerated but clearly recognizable.";
     default:
       return "Enhance this image professionally.";
   }
@@ -25,20 +24,15 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Only POST allowed" });
   }
 
-  const form = formidable({
-    multiples: false,
-    maxFileSize: 2 * 1024 * 1024,
-  });
+  const form = formidable({ multiples: false });
 
   form.parse(req, async (err, fields, files) => {
     if (err) {
-      return res.status(400).json({ error: "Upload error or file too large." });
+      return res.status(400).json({ error: "Upload error" });
     }
 
     let imageFile = files.image;
-    if (Array.isArray(imageFile)) {
-      imageFile = imageFile[0];
-    }
+    if (Array.isArray(imageFile)) imageFile = imageFile[0];
 
     const effect = Array.isArray(fields.effect)
       ? fields.effect[0]
@@ -49,53 +43,56 @@ export default async function handler(req, res) {
     }
 
     try {
-      const formData = new FormData();
-
-      formData.append("model", "dall-e-2");
-      formData.append("prompt", getPrompt(effect));
-      formData.append("size", "512x512");
-      formData.append("response_format", "b64_json");
-
-      formData.append(
-        "image",
-        fs.createReadStream(imageFile.filepath),
-        {
-          filename: "image.png",
-          contentType: "image/png",
-        }
-      );
+      const base64Image = fs
+        .readFileSync(imageFile.filepath)
+        .toString("base64");
 
       const response = await fetch(
-        "https://api.openai.com/v1/images/variations",
+        "https://api.openai.com/v1/responses",
         {
           method: "POST",
           headers: {
             Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            ...formData.getHeaders(),
+            "Content-Type": "application/json",
           },
-          body: formData,
+          body: JSON.stringify({
+            model: "gpt-image-1",
+            input: [
+              {
+                role: "user",
+                content: [
+                  { type: "input_text", text: getPrompt(effect) },
+                  {
+                    type: "input_image",
+                    image_base64: base64Image,
+                  },
+                ],
+              },
+            ],
+          }),
         }
       );
 
       const data = await response.json();
 
-      if (!data.data || !data.data[0]) {
-        console.error("OPENAI RAW:", data);
+      const image =
+        data.output?.[0]?.content?.find(
+          (c) => c.type === "output_image"
+        )?.image_base64;
+
+      if (!image) {
+        console.error("RAW:", data);
         return res.status(500).json({
           error: "No image returned",
           raw: data,
         });
       }
 
-      return res.status(200).json({
-        image: data.data[0].b64_json,
-      });
+      return res.status(200).json({ image });
 
     } catch (e) {
-      console.error("OPENAI ERROR:", e);
-      return res.status(500).json({
-        error: e.message,
-      });
+      console.error("ERROR:", e);
+      return res.status(500).json({ error: e.message });
     }
   });
 }
