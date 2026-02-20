@@ -32,7 +32,7 @@ export default function Home() {
     ctx.drawImage(img, 0, 0, width, height);
 
     return new Promise((resolve) => {
-      canvas.toBlob(resolve, "image/png", 0.9);
+      canvas.toBlob(resolve, "image/png", 0.5);
     });
   }
 
