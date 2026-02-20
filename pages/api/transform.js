@@ -13,7 +13,7 @@ const openai = new OpenAI({
 function getPrompt(effect) {
   switch (effect) {
     case "vintage":
-      return "Recreate this photo in realistic 1990s Kodak film style. Warm tones, subtle grain, cinematic lighting.";
+      return "Recreate this photo in realistic 1990s Kodak film style. Warm tones, subtle grain.";
     case "balloon":
       return "Make the person's head look like a funny inflated balloon while keeping identity recognizable.";
     default:
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
       const response = await openai.images.generate({
         model: "gpt-image-1",
         prompt: getPrompt(effect),
-        input: base64Image,
+        images: [base64Image],   // ✅ DOĞRU PARAM
         size: "1024x1024",
       });
 
@@ -56,9 +56,9 @@ export default async function handler(req, res) {
       });
 
     } catch (e) {
-      console.error("IMAGE GENERATION ERROR:", e);
+      console.error("IMAGE ERROR:", e);
       return res.status(500).json({
-        error: e.message || "Image generation failed",
+        error: e.message,
       });
     }
   });
