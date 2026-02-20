@@ -75,13 +75,25 @@ export default async function handler(req, res) {
 
       const data = await response.json();
 
-      const image =
-        data.output?.[0]?.content?.find(
-          (c) => c.type === "output_image"
-        )?.image_base64;
+      // 🔥 Daha güvenli extraction
+      let image = null;
+
+      if (data.output && Array.isArray(data.output)) {
+        for (const item of data.output) {
+          if (item.content && Array.isArray(item.content)) {
+            for (const c of item.content) {
+              if (c.type === "output_image" && c.image_base64) {
+                image = c.image_base64;
+                break;
+              }
+            }
+          }
+          if (image) break;
+        }
+      }
 
       if (!image) {
-        console.error("RAW:", data);
+        console.error("RAW RESPONSE:", JSON.stringify(data, null, 2));
         return res.status(500).json({
           error: "No image returned",
           raw: data,
