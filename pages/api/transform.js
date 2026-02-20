@@ -1,13 +1,10 @@
-import OpenAI from "openai";
 import formidable from "formidable";
 import fs from "fs";
-import { toFile } from "openai/uploads";
+import FormData from "form-data";
 
 export const config = {
   api: { bodyParser: false },
 };
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 function getPrompt(effect) {
   switch (effect) {
@@ -30,26 +27,38 @@ export default async function handler(req, res) {
 
     const imageFile = files.image?.[0];
     const effect = fields.effect?.[0] || "default";
-
     if (!imageFile) return res.status(400).json({ error: "No image provided" });
 
     try {
-      // ✅ Dosyayı filename + mimetype ile “gerçek file” yap
-      const file = await toFile(
-        fs.createReadStream(imageFile.filepath),
-        "image.png",
-        { type: "image/png" }
-      );
+      const fd = new FormData();
 
-      const response = await openai.images.edit({
-        model: "dall-e-2",
-        image: file,
-        prompt: getPrompt(effect),
-        size: "512x512",
-        response_format: "b64_json",
+      // ✅ burada contentType'ı ZORLUYORUZ
+      fd.append("image", fs.createReadStream(imageFile.filepath), {
+        filename: "image.png",
+        contentType: "image/png",
       });
 
-      return res.status(200).json({ image: response.data[0].b64_json });
+      fd.append("prompt", getPrompt(effect));
+      fd.append("size", "512x512");
+      fd.append("response_format", "b64_json");
+      fd.append("model", "dall-e-2");
+
+      const r = await fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          ...fd.getHeaders(),
+        },
+        body: fd,
+      });
+
+      const data = await r.json();
+
+      if (!r.ok) {
+        return res.status(r.status).json({ error: data?.error?.message || JSON.stringify(data) });
+      }
+
+      return res.status(200).json({ image: data.data[0].b64_json });
     } catch (e) {
       return res.status(500).json({ error: e?.message || String(e) });
     }
