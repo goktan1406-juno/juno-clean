@@ -8,11 +8,11 @@ export const config = {
 function getPrompt(effect) {
   switch (effect) {
     case "vintage":
-      return "Recreate this image in realistic 1990s Kodak film style. Return only the edited image.";
+      return "Recreate this image in realistic 1990s Kodak film style.";
     case "balloon":
-      return "Make the person's head look like a funny inflated balloon while keeping identity recognizable. Return only the edited image.";
+      return "Make the person's head look like a funny inflated balloon while keeping identity recognizable.";
     default:
-      return "Enhance this image professionally. Return only the edited image.";
+      return "Enhance this image professionally.";
   }
 }
 
@@ -35,33 +35,28 @@ export default async function handler(req, res) {
 
     try {
       const imageBuffer = fs.readFileSync(imageFile.filepath);
-      const base64Image = imageBuffer.toString("base64");
 
-      const response = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-image-1",
-          input: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "input_text",
-                  text: getPrompt(effect),
-                },
-                {
-                  type: "input_image",
-                  image_url: `data:image/png;base64,${base64Image}`,
-                },
-              ],
-            },
-          ],
-        }),
-      });
+      const response = await fetch(
+        "https://api.openai.com/v1/images/edits",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          },
+          body: (() => {
+            const formData = new FormData();
+            formData.append("model", "gpt-image-1");
+            formData.append("prompt", getPrompt(effect));
+            formData.append(
+              "image",
+              new Blob([imageBuffer]),
+              "image.png"
+            );
+            formData.append("size", "512x512");
+            return formData;
+          })(),
+        }
+      );
 
       const data = await response.json();
 
@@ -72,19 +67,8 @@ export default async function handler(req, res) {
         });
       }
 
-      const outputImage = data.output?.[0]?.content?.find(
-        (c) => c.type === "output_image"
-      );
-
-      if (!outputImage) {
-        console.error("NO IMAGE IN RESPONSE:", data);
-        return res.status(500).json({
-          error: "No image returned from OpenAI",
-        });
-      }
-
       return res.status(200).json({
-        image: outputImage.image_base64,
+        image: data.data[0].b64_json,
       });
 
     } catch (e) {
