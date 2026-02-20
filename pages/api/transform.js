@@ -53,9 +53,10 @@ export default async function handler(req, res) {
         image: response.data[0].b64_json,
       });
 
-    } catch (e) {
-      return res.status(500).json({
-        error: e.message || String(e),
+  catch (e) {
+  console.error("FULL ERROR:", e);
+  return res.status(500).json({
+    error: JSON.stringify(e, Object.getOwnPropertyNames(e)),
       });
     }
   });
