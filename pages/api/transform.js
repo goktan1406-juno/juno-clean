@@ -2,16 +2,12 @@ export const runtime = "nodejs";
 
 import formidable from "formidable";
 import fs from "fs";
-import sharp from "sharp";
-import OpenAI from "openai";
+import FormData from "form-data";
+import fetch from "node-fetch";
 
 export const config = {
   api: { bodyParser: false },
 };
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 function getPrompt(effect) {
   switch (effect) {
@@ -31,7 +27,7 @@ export default async function handler(req, res) {
 
   const form = formidable({
     multiples: false,
-    maxFileSize: 2 * 1024 * 1024,
+    maxFileSize: 2 * 1024 * 1024, // 2MB
   });
 
   form.parse(req, async (err, fields, files) => {
@@ -39,29 +35,62 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "File too large (max 2MB)." });
     }
 
-    const imageFile = files.image?.[0];
-    const effect = fields.effect?.[0] || "default";
+    // 🔥 formidable v2 / v3 uyumlu çözüm
+    let imageFile = files.image;
+    if (Array.isArray(imageFile)) {
+      imageFile = imageFile[0];
+    }
+
+    const effect = Array.isArray(fields.effect)
+      ? fields.effect[0]
+      : fields.effect || "default";
 
     if (!imageFile) {
       return res.status(400).json({ error: "No image provided" });
     }
 
     try {
-      // 🔥 GERÇEK PNG ENCODE (resize yok)
-      const pngBuffer = await sharp(imageFile.filepath)
-        .png({ compressionLevel: 9 })
-        .toBuffer();
+      const formData = new FormData();
 
-      const response = await openai.images.edit({
-        model: "dall-e-2",
-        image: pngBuffer,
-        prompt: getPrompt(effect),
-        size: "512x512",
-        response_format: "b64_json",
-      });
+      formData.append("model", "dall-e-2");
+      formData.append("prompt", getPrompt(effect));
+      formData.append("size", "512x512");
+      formData.append("response_format", "b64_json");
+
+      // 🔥 BURASI KRİTİK
+      formData.append(
+        "image",
+        fs.createReadStream(imageFile.filepath),
+        {
+          filename: "image.png",
+          contentType: "image/png",
+        }
+      );
+
+      const response = await fetch(
+        "https://api.openai.com/v1/images/edits",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            ...formData.getHeaders(),
+          },
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!data.data || !data.data[0]) {
+        console.error("OPENAI RAW RESPONSE:", data);
+        return res.status(500).json({
+          error: "No image returned from OpenAI",
+          raw: data,
+        });
+      }
 
       return res.status(200).json({
-        image: response.data[0].b64_json,
+        image: data.data[0].b64_json,
       });
 
     } catch (e) {
