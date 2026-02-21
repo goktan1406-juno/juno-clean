@@ -4,6 +4,7 @@ export const config = {
 
 import formidable from "formidable";
 import fs from "fs";
+import FormData from "form-data";
 
 function getPrompt(effect) {
   switch (effect) {
@@ -17,7 +18,7 @@ function getPrompt(effect) {
 }
 
 export default async function handler(req, res) {
-  console.log("TRANSFORM GPT-4.1 ACTIVE");
+  console.log("TRANSFORM GPT-IMAGE-1 ACTIVE");
 
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Only POST allowed" });
@@ -43,47 +44,33 @@ export default async function handler(req, res) {
     }
 
     try {
-      const fileBuffer = fs.readFileSync(imageFile.filepath);
-      const base64Image = fileBuffer.toString("base64");
+      const formData = new FormData();
+      formData.append("model", "gpt-image-1");
+      formData.append("prompt", getPrompt(effect));
+      formData.append("image", fs.createReadStream(imageFile.filepath));
 
-      const response = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4.1",
-          input: [
-            {
-              role: "user",
-              content: [
-                { type: "input_text", text: getPrompt(effect) },
-                {
-                  type: "input_image",
-                  image_url: `data:${imageFile.mimetype};base64,${base64Image}`,
-                },
-              ],
-            },
-          ],
-        }),
-      });
+      const response = await fetch(
+        "https://api.openai.com/v1/images/edits",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            ...formData.getHeaders(),
+          },
+          body: formData,
+        }
+      );
 
       const data = await response.json();
 
-      const image = data.output
-        ?.flatMap((o) => o.content || [])
-        ?.find((c) => c.type === "output_image")
-        ?.image_base64;
-
-      if (!image) {
+      if (!data.data || !data.data[0]?.b64_json) {
         console.error("OPENAI RAW:", data);
         return res.status(500).json({ error: "No image returned" });
       }
 
       return res.status(200).json({
         success: true,
-        image,
+        image: data.data[0].b64_json,
       });
 
     } catch (error) {
