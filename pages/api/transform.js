@@ -1,21 +1,24 @@
-export const runtime = "nodejs";
-
-import formidable from "formidable";
-import fs from "fs";
-import fetch from "node-fetch";
-
+console.log("TRANSFORM V2 ACTIVE");
 export const config = {
   api: { bodyParser: false },
 };
 
+import OpenAI from "openai";
+import formidable from "formidable";
+import fs from "fs";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 function getPrompt(effect) {
   switch (effect) {
     case "vintage":
-      return "Transform this photo into a realistic 1990s Kodak film style with warm tones, subtle grain, and soft vignette. Keep the same person and identity.";
+      return "Transform this photo into a realistic 1990s Kodak film style with warm tones, subtle grain and soft vignette. Keep identity exactly the same.";
     case "balloon":
-      return "Make the person's head look like a funny inflated balloon while keeping their identity recognizable.";
+      return "Make the person's head look like a funny inflated balloon while keeping identity recognizable.";
     default:
-      return "Enhance this image professionally.";
+      return "Enhance this image professionally with natural colors and sharp detail.";
   }
 }
 
@@ -28,6 +31,7 @@ export default async function handler(req, res) {
 
   form.parse(req, async (err, fields, files) => {
     if (err) {
+      console.error("FORM ERROR:", err);
       return res.status(400).json({ error: "Upload error" });
     }
 
@@ -43,29 +47,35 @@ export default async function handler(req, res) {
     }
 
     try {
-      const base64 = fs.readFileSync(imageFile.filepath).toString("base64");
+      // Dosyayı oku
+      const fileBuffer = fs.readFileSync(imageFile.filepath);
+      const base64Image = fileBuffer.toString("base64");
 
-      const dataUrl = `data:image/png;base64,${base64}`;
+      // 🔥 DOĞRU ENDPOINT BURASI
+      const response = await openai.images.generate({
+        model: "gpt-image-1",
+        prompt: getPrompt(effect),
+        image: `data:${imageFile.mimetype};base64,${base64Image}`,
+        size: "1024x1024",
+      });
 
-      const response = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-image-1",
-          input: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "input_text",
-                  text: getPrompt(effect),
-                },
-                {
-                  type: "input_image",
-                  image_url: dataUrl,
-                },
-              ],
-            },
+      const generatedImage = response.data?.[0]?.b64_json;
+
+      if (!generatedImage) {
+        console.error("RAW RESPONSE:", response);
+        return res.status(500).json({ error: "No image returned" });
+      }
+
+      return res.status(200).json({
+        success: true,
+        image: generatedImage,
+      });
+
+    } catch (error) {
+      console.error("OPENAI ERROR:", error);
+      return res.status(500).json({
+        error: error.message || "Image generation failed",
+      });
+    }
+  });
+}
