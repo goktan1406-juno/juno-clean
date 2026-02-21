@@ -1,3 +1,4 @@
+throw new Error("IF YOU SEE THIS, NEW CODE IS RUNNING");
 export const config = {
   api: { bodyParser: false },
 };
