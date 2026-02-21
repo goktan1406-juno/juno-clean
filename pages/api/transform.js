@@ -1,15 +1,9 @@
-console.log("TRANSFORM V2 ACTIVE");
 export const config = {
   api: { bodyParser: false },
 };
 
-import OpenAI from "openai";
 import formidable from "formidable";
 import fs from "fs";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 function getPrompt(effect) {
   switch (effect) {
@@ -23,6 +17,8 @@ function getPrompt(effect) {
 }
 
 export default async function handler(req, res) {
+  console.log("TRANSFORM FINAL ACTIVE");
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Only POST allowed" });
   }
@@ -47,32 +43,38 @@ export default async function handler(req, res) {
     }
 
     try {
-      // Dosyayı oku
       const fileBuffer = fs.readFileSync(imageFile.filepath);
       const base64Image = fileBuffer.toString("base64");
 
-      // 🔥 DOĞRU ENDPOINT BURASI
-      const response = await openai.images.generate({
-        model: "gpt-image-1",
-        prompt: getPrompt(effect),
-        image: `data:${imageFile.mimetype};base64,${base64Image}`,
-        size: "1024x1024",
+      // 🔥 DIRECT REST CALL (SDK YOK)
+      const response = await fetch("https://api.openai.com/v1/images", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-image-1",
+          prompt: getPrompt(effect),
+          image: `data:${imageFile.mimetype};base64,${base64Image}`,
+          size: "1024x1024"
+        }),
       });
 
-      const generatedImage = response.data?.[0]?.b64_json;
+      const data = await response.json();
 
-      if (!generatedImage) {
-        console.error("RAW RESPONSE:", response);
+      if (!data.data || !data.data[0]?.b64_json) {
+        console.error("OPENAI RAW:", data);
         return res.status(500).json({ error: "No image returned" });
       }
 
       return res.status(200).json({
         success: true,
-        image: generatedImage,
+        image: data.data[0].b64_json,
       });
 
     } catch (error) {
-      console.error("OPENAI ERROR:", error);
+      console.error("SERVER ERROR:", error);
       return res.status(500).json({
         error: error.message || "Image generation failed",
       });
